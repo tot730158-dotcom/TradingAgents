@@ -582,8 +582,13 @@ class PdfWriter:
 
         title = a.title or md_path.stem
         meta: dict[str, str] = {}
-        for ln in text.splitlines()[:14]:
+        # The preamble is everything before the first "## " section; the report tree nests each
+        # agent's own "# Title" right after its subsection heading, so scanning a fixed number of
+        # lines would let the Market Analyst's title win over the document's.
+        for ln in text.splitlines():
             s = ln.strip()
+            if s.startswith("## "):
+                break
             if s.startswith("# "):
                 title = s[2:].strip()
             elif ":" in s and not s.startswith(("#", "-", "|", ">", "*")) and len(s) < 200:
