@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Breaking changes within the 0.x line are called out explicitly.
 
+## [Unreleased]
+
+### Added
+
+- **Keyless agent-supplied runs** (`scripts/agent_supplied_run.py`). The decision path —
+  analyst reports, both debate records, the structured Research Manager / Trader /
+  Portfolio Manager blocks, the extracted 5-tier signal, the report tree, the state log and
+  the pending memory-log entry — can now be driven from a JSON "run pack" whose prose comes
+  from any thinker: a local model, another agent runtime, or a human analyst. Useful where
+  no provider key or market-data egress exists, and as a deterministic fixture for testing
+  report/decision plumbing. Structured blocks are validated by the same pydantic schemas the
+  agents use and rendered by the same `render_*` helpers, so a keyless run is shaped exactly
+  like an LLM run; the percentage-price coercion (#1288), the `REVIEW` sentinel for
+  unparseable ratings (#1170), and a new deterministic band/score consistency check on the
+  sentiment report all apply. `--validate-only` preflights a pack, `--strict` fails on
+  warnings, and `--template` emits a skeleton pack.
 ## [0.4.0] — 2026-08-31
 
 Look-ahead and point-in-time fixes across the data and memory layers, clearer
