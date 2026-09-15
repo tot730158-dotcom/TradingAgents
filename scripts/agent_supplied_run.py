@@ -54,14 +54,21 @@ debate records plus the three structured blocks; anything else is optional.
                        "price_target": …, "time_horizon": …}
     }
 
+Every section's prose is plain markdown, so a localised run (set
+``TRADINGAGENTS_OUTPUT_LANGUAGE=繁體中文``) can be typeset straight to PDF with ``--pdf``:
+it renders the report tree's ``complete_report.md`` through ``scripts/report_to_pdf.py``,
+which ships a CJK-capable face and needs no TeX, weasyprint or system fonts. The PDF is
+written next to the report tree as ``complete_report.pdf``.
+
 Exit status: 0 on success, 1 if validation fails or the extracted signal is ``REVIEW``
 (that decision text carries no recognizable 5-tier rating and must not be treated as
-tradeable), 2 on a usage/IO error.
+tradeable), 2 on a usage/IO error (including ``--pdf`` without PyMuPDF installed).
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import sys
 from datetime import datetime
@@ -409,6 +416,32 @@ def _write_template(ticker: str, trade_date: str) -> dict[str, Any]:
     }
 
 
+def load_pdf_renderer():
+    """Import ``scripts/report_to_pdf.py`` by path (``scripts`` is not a package)."""
+    if importlib.util.find_spec("pymupdf") is None:
+        raise PackError(
+            "PDF output needs PyMuPDF: pip install \"tradingagents[pdf]\" "
+            "(or: pip install pymupdf)"
+        )
+    path = Path(__file__).with_name("report_to_pdf.py")
+    spec = importlib.util.spec_from_file_location("report_to_pdf", path)
+    if spec is None or spec.loader is None:  # pragma: no cover - broken install
+        raise PackError(f"cannot load the PDF renderer at {path}")
+    module = importlib.util.module_from_spec(spec)
+    # Register before exec: the renderer's @dataclass classes resolve annotations through
+    # sys.modules[cls.__module__], which a bare spec-load leaves unset.
+    sys.modules.setdefault(spec.name, module)
+    spec.loader.exec_module(module)
+    return module
+
+
+def render_pdf_report(report: Path, *, lang: str, page_size: str) -> dict:
+    """Typeset one report markdown file into a PDF next to it."""
+    module = load_pdf_renderer()
+    return module.render_pdf(report, report.with_name(f"{report.stem}.pdf"),
+                             lang=lang, page_size=page_size)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Run the TradingAgents decision path from an externally supplied pack (no API key).",
@@ -422,6 +455,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--write-reports", action="store_true", help="write the report tree via write_report_tree")
     parser.add_argument("--memory-log", action="store_true", help="append the pending entry to the decision log")
     parser.add_argument("--state-log", action="store_true", help="write full_states_log_<date>.json like the graph does")
+    parser.add_argument("--pdf", action="store_true",
+                        help="also typeset complete_report.md as a paginated PDF (needs pymupdf)")
+    parser.add_argument("--pdf-lang", default="auto", choices=("auto", "en", "zh", "ja", "ko"),
+                        help="language of the PDF chrome (cover caption, rating label, footer); "
+                             "default: detected from each report's script")
+    parser.add_argument("--pdf-page-size", default="a4", choices=("a4", "letter", "a5"),
+                        help="PDF page size")
     parser.add_argument("--strict", action="store_true", help="treat warnings as errors")
     args = parser.parse_args(argv)
 
@@ -470,6 +510,21 @@ def main(argv: list[str] | None = None) -> int:
             report_path = write_report_tree(state, state["company_of_interest"], save_path)
         else:
             report_path = None
+
+    if args.pdf:
+        if report_path is None:
+            print("error: --pdf needs --write-reports (it typesets the written complete_report.md)",
+                  file=sys.stderr)
+            return 2
+        try:
+            info = render_pdf_report(Path(report_path), lang=args.pdf_lang, page_size=args.pdf_page_size)
+        except PackError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        print(
+            f"pdf: {info['path']}  ({info['pages']} pages, lang {info['lang']}, "
+            f"rating {info['rating']}, {info['bytes'] / 1024:.0f} KB)"
+        )
 
     if args.state_log:
         directory = (

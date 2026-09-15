@@ -22,6 +22,18 @@ Breaking changes within the 0.x line are called out explicitly.
   unparseable ratings (#1170), and a new deterministic band/score consistency check on the
   sentiment report all apply. `--validate-only` preflights a pack, `--strict` fails on
   warnings, and `--template` emits a skeleton pack.
+- **Markdown report → PDF export** (`scripts/report_to_pdf.py`, `pip install
+  "tradingagents[pdf]"`). Typesets the `complete_report.md` a run writes into a paginated PDF
+  with PyMuPDF alone: no pandoc/LaTeX, no weasyprint/Pango, no system fonts required. Built for
+  localised runs (`TRADINGAGENTS_OUTPUT_LANGUAGE=繁體中文`): body text always uses MuPDF's
+  pan-CJK face, because the base-14 faces raise on the typographic symbols analyst prose is full
+  of (≈ → ± —) rather than substituting, and one Traditional/Simplified glyph is never
+  substituted for another. Cover carries the 5-tier rating extracted by `extract_rating` —
+  scoped to the Portfolio Manager section, so a bull/bear debate sentence like "Sell on any
+  rally" cannot mislabel the badge — with a translated label per `--lang` (default: detected
+  from the report's script), plus a table of contents, repeating table header rows, a PDF
+  outline and page-numbered footers. `agent_supplied_run.py --pdf [--pdf-lang zh]` runs it as
+  part of a keyless run; font subsetting keeps a 17-page report near 100 KB.
 ## [0.4.0] — 2026-08-31
 
 Look-ahead and point-in-time fixes across the data and memory layers, clearer

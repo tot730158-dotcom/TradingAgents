@@ -44,6 +44,12 @@ dev = [
 bedrock = [
     "langchain-aws>=1.5.0",
 ]
+# PDF export for report trees (scripts/report_to_pdf.py, scripts/agent_supplied_run.py --pdf).
+# PyMuPDF ships its own fonts, so CJK reports typeset with no system-font or TeX dependency.
+pdf = [
+    "pymupdf>=1.24.0",
+    "fonttools>=4.53.0",
+]
 
 [project.scripts]
 tradingagents = "cli.main:app"
