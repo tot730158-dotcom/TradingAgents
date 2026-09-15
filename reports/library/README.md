@@ -15,6 +15,7 @@ python scripts/pdf_library.py build           # regenerate this table and index.
 | 日期 | 股票 | 語言 | 決策 | 頁 | 檔案 |
 |---|---|---|---|---|---|
 | 2026-09-15 | OKLO | 繁體中文 | Underweight 減碼 | 10 | [`2026-09-15_OKLO_traditional_chinese.pdf`](2026-09-15_OKLO_traditional_chinese.pdf) · [markdown](2026-09-15_OKLO_traditional_chinese.md) |
+| 2026-09-15 | CRWV | 繁體中文 | Underweight 減碼 | 16 | [`2026-09-15_CRWV_traditional_chinese.pdf`](2026-09-15_CRWV_traditional_chinese.pdf) · [markdown](2026-09-15_CRWV_traditional_chinese.md) |
 
 `manifest.json` holds the machine-readable version of this table.
 研究用，不構成投資建議。

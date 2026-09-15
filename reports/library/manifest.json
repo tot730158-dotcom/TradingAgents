@@ -20,6 +20,24 @@
       "markdown": "reports/OKLO_2026-09-15/complete_report_zh.md",
       "reader": "reports/OKLO_2026-09-15/OKLO_2026-09-15_繁體中文報告.html",
       "note": "由 sync 自動放入（auto-filed by sync）"
+    },
+    {
+      "slug": "2026-09-15_CRWV_traditional_chinese",
+      "file": "2026-09-15_CRWV_traditional_chinese.pdf",
+      "ticker": "CRWV",
+      "date": "2026-09-15",
+      "lang": "zh",
+      "name": "CoreWeave, Inc. (NASDAQ: CRWV)",
+      "title": "交易分析報告：CRWV（CoreWeave 人工智慧雲端基建）",
+      "rating": "Underweight",
+      "pages": 16,
+      "bytes": 207726,
+      "sha256": "d751d159a1cb",
+      "added": "2026-09-15",
+      "source": "reports/CRWV_2026-09-15/CRWV_2026-09-15_繁體中文報告.pdf",
+      "markdown": "reports/CRWV_2026-09-15/complete_report_zh.md",
+      "reader": "reports/CRWV_2026-09-15/CRWV_2026-09-15_繁體中文報告.html",
+      "note": "由 sync 自動放入（auto-filed by sync）"
     }
   ]
 }
