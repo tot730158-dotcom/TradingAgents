@@ -241,7 +241,10 @@ def test_pdf_flag_typesets_the_written_report_tree(tmp_path, runner, capsys):
     out = tmp_path / "reports" / "RKLB_20260915"
 
     code = runner.main(
-        [str(pack_dir / "pack.json"), "--write-reports", "--pdf", "--pdf-lang", "zh", "--out", str(out)]
+        [
+            str(pack_dir / "pack.json"), "--write-reports", "--pdf", "--pdf-html",
+            "--pdf-lang", "zh", "--out", str(out),
+        ]
     )
 
     assert code == 0
@@ -252,6 +255,10 @@ def test_pdf_flag_typesets_the_written_report_tree(tmp_path, runner, capsys):
         assert doc.page_count >= 2
         # Chinese chrome is a renderer-side choice; the report prose stays as written.
         assert "最終決策" in doc[0].get_text()
+    # --pdf-html: a self-contained fallback for browsers that refuse to show the PDF.
+    reader = (out / "complete_report.html").read_text(encoding="utf-8")
+    assert "data:image/jpeg;base64," in reader and "@media print" in reader
+    assert "src=\"http" not in reader
 
 
 @pytest.mark.unit

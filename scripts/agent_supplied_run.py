@@ -435,11 +435,16 @@ def load_pdf_renderer():
     return module
 
 
-def render_pdf_report(report: Path, *, lang: str, page_size: str) -> dict:
-    """Typeset one report markdown file into a PDF next to it."""
+def render_pdf_report(report: Path, *, lang: str, page_size: str, html: bool = False) -> dict:
+    """Typeset one report markdown file into a PDF next to it (optionally + HTML reader)."""
     module = load_pdf_renderer()
-    return module.render_pdf(report, report.with_name(f"{report.stem}.pdf"),
+    info = module.render_pdf(report, report.with_name(f"{report.stem}.pdf"),
                              lang=lang, page_size=page_size)
+    if html:
+        # Browsers that block PDFs (sandboxed preview frames, disabled PDF plugin) still
+        # render this: one file, pages inlined, printable back to a PDF.
+        info["html"] = module.write_html_reader(info["path"], lang=info["lang"])
+    return info
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -462,6 +467,8 @@ def main(argv: list[str] | None = None) -> int:
                              "default: detected from each report's script")
     parser.add_argument("--pdf-page-size", default="a4", choices=("a4", "letter", "a5"),
                         help="PDF page size")
+    parser.add_argument("--pdf-html", action="store_true",
+                        help="with --pdf, also write a self-contained HTML reader next to it")
     parser.add_argument("--strict", action="store_true", help="treat warnings as errors")
     args = parser.parse_args(argv)
 
@@ -517,7 +524,9 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
             return 2
         try:
-            info = render_pdf_report(Path(report_path), lang=args.pdf_lang, page_size=args.pdf_page_size)
+            info = render_pdf_report(
+                Path(report_path), lang=args.pdf_lang, page_size=args.pdf_page_size, html=args.pdf_html
+            )
         except PackError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
@@ -525,6 +534,12 @@ def main(argv: list[str] | None = None) -> int:
             f"pdf: {info['path']}  ({info['pages']} pages, lang {info['lang']}, "
             f"rating {info['rating']}, {info['bytes'] / 1024:.0f} KB)"
         )
+        if "html" in info:
+            reader = info["html"]
+            print(
+                f"html: {reader['path']}  ({reader['pages']} pages, "
+                f"{reader['bytes'] / 1024 / 1024:.1f} MB, for browsers that block PDFs)"
+            )
 
     if args.state_log:
         directory = (

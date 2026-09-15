@@ -202,3 +202,31 @@ def test_empty_report_still_produces_a_document(tmp_path):
     assert info["pages"] >= 1
     assert info["rating"] == "REVIEW"
     assert pymupdf.open(info["path"]).page_count == info["pages"]
+
+@pytest.mark.unit
+def test_outline_stops_at_the_agent_level(tmp_path):
+    md = tmp_path / "complete_report.md"
+    md.write_text(
+        ZH_REPORT + "\n#### English\n\nlabelled block\n\n##### deep\n\nmore\n", encoding="utf-8"
+    )
+    info = rtp.render_pdf(md, tmp_path / "out.pdf", lang="zh")
+    with pymupdf.open(info["path"]) as doc:
+        titles = [entry[1] for entry in doc.get_toc()]
+    assert "English" not in " ".join(titles) and "deep" not in " ".join(titles)
+    assert any("組合經理" in t for t in titles)  # h3 agents are still bookmarked
+
+
+@pytest.mark.unit
+def test_html_reader_is_self_contained_and_dark_mode_ready(tmp_path):
+    info = _pdf(tmp_path, ZH_REPORT, lang="zh")
+    # The PDF carries the report title, so the reader header is not just a filename.
+    with pymupdf.open(info["path"]) as doc:
+        assert doc.metadata["title"] == "交易分析報告：RKLB（Rocket Lab 火箭實驗室）"
+        pages = doc.page_count
+    reader = rtp.write_html_reader(info["path"], tmp_path / "read.html", lang="zh")
+    assert reader["pages"] == pages
+    html = (tmp_path / "read.html").read_text(encoding="utf-8")
+    assert html.count("data:image/jpeg;base64,") == pages  # every page inlined
+    assert "src=\"http" not in html and "href=\"http" not in html  # nothing to fetch
+    assert 'lang="zh-Hant"' in html and "@media print" in html and "color-scheme: light dark" in html
+    assert 'id="theme-dark"' in html and 'id="invert"' in html and 'onclick="window.print()"' in html

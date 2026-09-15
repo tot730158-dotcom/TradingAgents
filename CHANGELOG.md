@@ -34,6 +34,14 @@ Breaking changes within the 0.x line are called out explicitly.
   from the report's script), plus a table of contents, repeating table header rows, a PDF
   outline and page-numbered footers. `agent_supplied_run.py --pdf [--pdf-lang zh]` runs it as
   part of a keyless run; font subsetting keeps a 17-page report near 100 KB.
+- **HTML reader fallback** (`report_to_pdf.py --html`). Writes the rendered PDF as one
+  self-contained HTML file — pages inlined as base64 images, no external requests, no PDF
+  plugin — for browsers and sandboxed preview frames that block PDF viewing and downloads.
+  The UI follows the system theme with a manual auto/dark/light switch and an invert-paper
+  option for reading white pages in the dark, reuses the PDF outline as a collapsible
+  contents list, and its print stylesheet reproduces the pagination so “Save as PDF” yields
+  the document back. `agent_supplied_run.py --pdf --pdf-html` emits both files per run. The
+  saved PDF now also carries document metadata (title, `rating: …` keyword).
 - **Bilingual (中英對照) report assembly** (`scripts/merge_bilingual_report.py`). Interleaves a
   run's report with its translation — every framework section and agent subsection is paired by
   position (an English/Chinese pair per section, original first), the agents' own headings are

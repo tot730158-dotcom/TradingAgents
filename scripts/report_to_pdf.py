@@ -33,6 +33,11 @@ Usage
     python scripts/report_to_pdf.py REPORT.md --out REPORT.pdf
     python scripts/report_to_pdf.py complete_report.md --out RKLB_繁體中文.pdf --lang zh \
         --font /usr/share/fonts/opentype/noto/NotoSansCJK.ttc --dpi-preview 120
+    python scripts/report_to_pdf.py complete_report.md --out RKLB.pdf --html   # + HTML reader
+
+``--html`` additionally writes a self-contained HTML reader (pages inlined as images, dark-mode
+UI, print stylesheet) for browsers/preview frames that refuse to show PDFs — see
+:func:`write_html_reader`.
 
 ``--lang`` (default ``auto``, detected from the report's script) switches only the strings the
 renderer itself prints — cover caption, footer page count, rating label. Report prose is
@@ -43,6 +48,7 @@ or in the markdown, never here. :func:`render_pdf` is the programmatic entry poi
 from __future__ import annotations
 
 import argparse
+import base64
 import contextlib
 import re
 import sys
@@ -67,6 +73,7 @@ except ImportError:
 from tradingagents.agents.utils.rating import extract_rating  # noqa: E402
 
 PAGE_SIZES = {"a4": (595.28, 841.89), "letter": (612.0, 792.0), "a5": (419.53, 595.28)}
+HTML_LANG = {"en": "en", "zh": "zh-Hant", "ja": "ja", "ko": "ko"}
 
 # One embeddable, symbol-complete face per language; MuPDF ships these in every wheel.
 BUILTIN_FACES = {"en": "china-t", "zh": "china-t", "ja": "japan", "ko": "korea"}
@@ -78,6 +85,8 @@ UI: dict[str, dict[str, str]] = {
         "of": "of %s",
         "sections": "Contents",
         "colon": ": ",
+        "pages": "%s pages",
+        "reader": "Reader", "auto": "Auto", "dark": "Dark", "light": "Light", "invert": "Invert paper", "print": "Print · Save as PDF", "toc": "Contents", "hint": "Pages are %d dpi rasters of \"%s\". Printing (or “Save as PDF”) reproduces the pagination and page numbers; keep the PDF for a vector copy.",
     },
     "zh": {
         "cover": "多代理交易分析報告",
@@ -86,6 +95,8 @@ UI: dict[str, dict[str, str]] = {
         "of": "／共 %s 頁",
         "sections": "目錄",
         "colon": "：",
+        "pages": "共 %s 頁",
+        "reader": "閱讀器", "auto": "自動", "dark": "深色", "light": "淺色", "invert": "紙面反轉", "print": "列印／存成 PDF", "toc": "目錄", "hint": "頁面為 %d dpi 點陣圖，取自「%s」；按「列印／存成 PDF」即重現分頁與頁碼，需要向量文字請保留原 PDF。",
     },
     "ja": {
         "cover": "マルチエージェント投資分析",
@@ -94,6 +105,8 @@ UI: dict[str, dict[str, str]] = {
         "of": "／全 %s ページ",
         "sections": "目次",
         "colon": "：",
+        "pages": "全 %s ページ",
+        "reader": "リーダー", "auto": "自動", "dark": "ダーク", "light": "ライト", "invert": "用紙を反転", "print": "印刷・PDF 保存", "toc": "目次", "hint": "各ページは %d dpi のビットマップ（%s より）。印刷／PDF 保存で見開きと通し番号を再現します。",
     },
     "ko": {
         "cover": "멀티 에이전트 매매 분석",
@@ -102,6 +115,8 @@ UI: dict[str, dict[str, str]] = {
         "of": " / 총 %s 페이지",
         "sections": "목차",
         "colon": ": ",
+        "pages": "총 %s 페이지",
+        "reader": "리더", "auto": "자동", "dark": "어둡게", "light": "밝게", "invert": "용지 반전", "print": "인쇄 · PDF 저장", "toc": "목차", "hint": "각 페이지는 %d dpi 비트맵입니다(출처 %s). 인쇄 또는 PDF 저장이면 쪽수까지 재현됩니다.",
     },
 }
 
@@ -627,6 +642,15 @@ class PdfWriter:
         if a.toc and self.toc:
             with contextlib.suppress(Exception):
                 self.doc.set_toc(self.toc)
+        self.doc.set_metadata(
+            {
+                "title": title,
+                "author": "TradingAgents",
+                "creator": "scripts/report_to_pdf.py",
+                "keywords": f"rating: {rating}",
+                "creationDate": fitz.get_pdf_now(),
+            }
+        )
         out_path.parent.mkdir(parents=True, exist_ok=True)
         if not a.no_subset:
             with contextlib.suppress(Exception):
@@ -658,6 +682,154 @@ def detect_lang(text: str) -> str:
     if hangul and hangul > han:
         return "ko"
     return "zh" if han > 20 else "en"
+
+
+READER_CSS = """
+:root {
+  color-scheme: light dark;
+  --bg: #f2f4f7; --fg: #161a20; --muted: #5c6572; --card: #ffffff;
+  --line: #d5dbe3; --accent: #0d5c73; --shadow: 0 1px 3px rgba(16, 24, 32, .12);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1014; --fg: #e8ecf2; --muted: #9aa7b6; --card: #161b21;
+    --line: #2a333d; --accent: #56b6d6; --shadow: 0 1px 4px rgba(0, 0, 0, .5);
+  }
+}
+/* Manual override wins over the system setting. */
+body:has(#theme-dark:checked) {
+  color-scheme: dark;
+  --bg: #0d1014; --fg: #e8ecf2; --muted: #9aa7b6; --card: #161b21;
+  --line: #2a333d; --accent: #56b6d6; --shadow: 0 1px 4px rgba(0, 0, 0, .5);
+}
+body:has(#theme-light:checked) {
+  color-scheme: light;
+  --bg: #f2f4f7; --fg: #161a20; --muted: #5c6572; --card: #ffffff;
+  --line: #d5dbe3; --accent: #0d5c73; --shadow: 0 1px 3px rgba(16, 24, 32, .12);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 0 0 48px; background: var(--bg); color: var(--fg);
+  font: 14px/1.55 ui-sans-serif, -apple-system, "Segoe UI", "Noto Sans TC", sans-serif;
+}
+.bar {
+  position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 10px 16px;
+  align-items: center; padding: 10px 18px; background: var(--card);
+  border-bottom: 1px solid var(--line); box-shadow: var(--shadow);
+}
+.bar h1 { font-size: 14px; margin: 0; font-weight: 650; letter-spacing: .01em; }
+.bar .sub { color: var(--muted); font-size: 12.5px; margin-left: 2px; }
+.bar .grow { flex: 1 1 auto; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.seg label { padding: 4px 9px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.seg label + label { border-left: 1px solid var(--line); }
+.seg input { display: none; }
+.seg input:checked + span { color: var(--fg); font-weight: 650; }
+.seg label:has(input:checked) { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--fg); }
+button, .btn {
+  font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 9px; cursor: pointer;
+  border: 1px solid var(--line); background: transparent; color: var(--fg); text-decoration: none;
+}
+button:hover, .btn:hover { border-color: var(--accent); }
+main { max-width: 940px; margin: 0 auto; padding: 22px 16px 0; }
+.sheet { margin: 0 0 20px; }
+.sheet img {
+  display: block; width: 100%; background: #fff; border: 1px solid var(--line);
+  border-radius: 3px; box-shadow: var(--shadow);
+}
+/* Reading white pages in the dark: invert the raster, not the chrome. */
+body:has(#invert:checked) .sheet img { filter: invert(1) hue-rotate(180deg); border-color: #444; }
+.sheet figcaption { color: var(--muted); font-size: 11.5px; padding-top: 5px; }
+nav.toc { max-width: 940px; margin: 0 auto; padding: 14px 16px 0; }
+nav.toc details { border: 1px solid var(--line); border-radius: 10px; background: var(--card); padding: 8px 12px; }
+nav.toc summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+nav.toc ol { margin: 8px 0 4px; padding-left: 18px; columns: 2 260px; column-gap: 26px; }
+nav.toc li { break-inside: avoid; font-size: 12.5px; margin: 0 0 4px; }
+nav.toc li.l2 { margin-left: 12px; color: var(--muted); }
+nav.toc a { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--line); }
+nav.toc a:hover { color: var(--accent); }
+.hint { color: var(--muted); font-size: 12px; padding: 16px 16px 0; max-width: 940px; margin: 0 auto; }
+@media print {
+  .bar, nav.toc, .hint { display: none !important; }
+  body { background: #fff; }
+  main { max-width: none; padding: 0; }
+  .sheet { margin: 0; break-after: page; page-break-after: always; }
+  .sheet:last-child { break-after: auto; page-break-after: auto; }
+  .sheet img { filter: none !important; border: 0; border-radius: 0; box-shadow: none; }
+  @page { margin: 0; }
+}
+"""
+
+
+def write_html_reader(pdf_path: Path | str, out: Path | str | None = None, *, dpi: int = 96,
+                      quality: int = 62, title: str | None = None, lang: str = "en") -> dict[str, Any]:
+    """Bundle a rendered PDF as one self-contained HTML page (no PDF plugin, no download).
+
+    Browsers that refuse to show PDFs inside a sandboxed preview frame — Chrome will not run
+    its PDF viewer there, and the frame has no ``allow-downloads`` grant — still render plain
+    images. Pages are inlined as base64 JPEGs, the UI follows the system theme with a manual
+    override plus an invert-paper switch for dark reading, and the print stylesheet reproduces
+    the page breaks, so “Save as PDF” from the browser yields the same document.
+
+    Rasterising at screen resolution is the trade: sharper pages cost ~2× the file size, so
+    raise ``dpi``/``quality`` for a print-oriented copy.
+    """
+    src = Path(pdf_path)
+    out_path = Path(out) if out else src.with_suffix(".html")
+    doc = fitz.open(src)
+    doc_title = (doc.metadata or {}).get("title") or src.stem
+    heading = _escape(title or doc_title)
+    toc = [(int(lvl), _escape(str(name)), int(page)) for lvl, name, page, *_ in doc.get_toc() if page > 0]
+    figures, total = [], 0
+    for index, page in enumerate(doc, start=1):
+        blob = page.get_pixmap(dpi=dpi).tobytes("jpg", jpg_quality=quality)
+        total += len(blob)
+        figures.append(
+            f'<figure class="sheet" id="p{index}">'
+            f'<img alt="page {index}" loading="lazy" '
+            f'src="data:image/jpeg;base64,{base64.b64encode(blob).decode()}">'
+            f"<figcaption>{index} / {doc.page_count}</figcaption></figure>"
+        )
+    ui = UI.get(lang, UI["en"])
+    html_lang = HTML_LANG.get(lang, lang)
+    nav = ""
+    if toc:
+        items = "".join(
+            f'<li class="l{min(level, 2)}"><a href="#p{page}">{name}</a></li>' for level, name, page in toc
+        )
+        nav = f'<nav class="toc ui"><details><summary>{ui["toc"]} · {len(toc)}</summary><ol>{items}</ol></details></nav>'
+    doc.close()
+    out_path.write_text(
+        f"<!doctype html><html lang=\"{html_lang}\"><head><meta charset=\"utf-8\">"
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        f"<title>{heading}</title><style>{READER_CSS}</style></head><body>"
+        '<header class="bar ui">'
+        f'<h1>{heading}</h1><span class="sub">{ui["pages"] % len(figures)}</span>'
+        '<span class="grow"></span><span class="seg">'
+        f'<label><input type="radio" name="theme" id="theme-auto" checked><span>{ui["auto"]}</span></label>'
+        f'<label><input type="radio" name="theme" id="theme-dark"><span>{ui["dark"]}</span></label>'
+        f'<label><input type="radio" name="theme" id="theme-light"><span>{ui["light"]}</span></label>'
+        "</span>"
+        f'<span class="seg"><label><input type="checkbox" id="invert"><span>{ui["invert"]}</span></label></span>'
+        f'<button onclick="window.print()">{ui["print"]}</button>'
+        "</header>"
+        f"{nav}<main>{''.join(figures)}</main>"
+        f'<p class="hint ui">{ui["hint"] % (dpi, _escape(src.name))}</p></body></html>',
+        encoding="utf-8",
+    )
+    return {
+        "path": out_path,
+        "pages": len(figures),
+        "bytes": out_path.stat().st_size,
+        "image_bytes": total,
+        "dpi": dpi,
+    }
+
+
+def _escape(text: str) -> str:
+    return (
+        text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+    )
 
 
 def build_typesetter(args, face: str | None = None) -> tuple[Typesetter, str]:
@@ -757,6 +929,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-subset", action="store_true", help="skip font subsetting (larger file)")
     ap.add_argument("--dpi-preview", type=int,
                     help="also rasterise the first, third and last page to PNG next to the PDF")
+    ap.add_argument("--html", action="store_true",
+                    help="also write a self-contained HTML reader (for browsers that block PDFs)")
+    ap.add_argument("--html-dpi", type=int, default=96, help="reader page resolution (default 96)")
+    ap.add_argument("--html-quality", type=int, default=62, help="reader JPEG quality (default 62)")
     ap.set_defaults(toc=True, footer=True, rating_labels=True)
     args = ap.parse_args(argv)
 
@@ -772,6 +948,15 @@ def main(argv: list[str] | None = None) -> int:
         f"  {info['pages']} pages · {info['bookmarks']} bookmarks · lang {info['lang']} · "
         f"font {info['font']} · rating {info['rating']} · {info['bytes'] / 1024:.0f} KB"
     )
+    if args.html:
+        reader_info = write_html_reader(
+            info["path"], dpi=args.html_dpi, quality=args.html_quality,
+            lang=info["lang"], title=info["title"],
+        )
+        print(
+            f"html: {reader_info['path']}  ({reader_info['pages']} pages at {reader_info['dpi']} dpi, "
+            f"{reader_info['bytes'] / 1024 / 1024:.1f} MB, dark-mode ready)"
+        )
     if args.dpi_preview:
         doc = fitz.open(info["path"])
         for pno in sorted({0, min(2, doc.page_count - 1), doc.page_count - 1}):
