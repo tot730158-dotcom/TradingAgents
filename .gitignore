@@ -220,4 +220,7 @@ __marimo__/
 
 # Enterprise env file (secrets) and generated run reports
 .env.enterprise
-reports/
+# Generated runs are reproducible, so they stay out of Git — except the finished-PDF
+# shelf (scripts/pdf_library.py), which must survive a workspace reset.
+reports/*
+!reports/library/

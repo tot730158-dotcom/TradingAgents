@@ -60,6 +60,13 @@ it renders the report tree's ``complete_report.md`` through ``scripts/report_to_
 which ships a CJK-capable face and needs no TeX, weasyprint or system fonts. The PDF is
 written next to the report tree as ``complete_report.pdf``.
 
+A finished PDF is worth keeping, so shelve it (tracked in Git, immune to a workspace reset)::
+
+    python scripts/pdf_library.py sync
+
+``sync`` copies the 繁中 PDF plus its markdown into ``reports/library/`` and rebuilds that
+folder's ``index.html``; see ``scripts/pdf_library.py`` for ``add``/``list``/``build``.
+
 Exit status: 0 on success, 1 if validation fails or the extracted signal is ``REVIEW``
 (that decision text carries no recognizable 5-tier rating and must not be treated as
 tradeable), 2 on a usage/IO error (including ``--pdf`` without PyMuPDF installed).

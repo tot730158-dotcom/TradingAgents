@@ -262,6 +262,18 @@ ta = TradingAgentsGraph(config=config)
 _, decision = ta.propagate("NVDA", "2026-01-15")
 ```
 
+### Report shelf
+
+Run output (the report tree, PDFs, HTML readers) is generated and disposable, so `reports/` stays git-ignored. A finished PDF is the one exception worth keeping: an authored run cannot always be replayed, and a workspace refresh clears `reports/` along with `~/.tradingagents`. `reports/library/` is therefore tracked on purpose.
+
+```bash
+python scripts/pdf_library.py sync   # shelf every reports/<TICKER>_<DATE>/ 繁中 PDF not yet filed
+python scripts/pdf_library.py add <pdf> --ticker OKLO --date 2026-09-15 --markdown <zh.md> --commit
+python scripts/pdf_library.py list   # what is on the shelf
+```
+
+Each `add`/`sync` copies the PDF (and, when given, its source markdown) into `reports/library/<date>_<TICKER>_<lang>.pdf`, deduplicates by content hash, and regenerates `index.html` (dark-first browser view) plus `README.md` and `manifest.json` for the same table elsewhere. The PDF is committed; the HTML reader is not — regenerate it from the shelved markdown with `scripts/report_to_pdf.py <md> --html`.
+
 ## Reproducibility
 
 TradingAgents is LLM-driven, so two runs of the same ticker and date can differ. This is expected for a research tool built on language models, not a defect. The variation comes from a few distinct sources, and it helps to separate them.
