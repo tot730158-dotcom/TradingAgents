@@ -240,6 +240,9 @@ def _table_cells(rows: list[list[str]], typeset: Typesetter, width: float, size:
             max((typeset.spans_width(_parse_inline(rows[r][c]), size) for r in range(len(rows))), default=24.0)
         )
     gap = 12.0
+    # Cell text is wrapped 6pt short of the column, so the natural width needs that slack
+    # back — otherwise the widest cell of every table is guaranteed to wrap.
+    natural = [n + 8.0 for n in natural]
     total = sum(natural) + gap * (ncol - 1)
     if total > width:
         avail = max(width - gap * (ncol - 1), ncol * 34.0)
@@ -610,7 +613,9 @@ class PdfWriter:
                 continue
             if block.keep_with_next:
                 self.room(size * 1.4 + size * 1.5)
-                if block.anchor and block.anchor != title:
+                # Outline depth matches the cover contents (report → section → agent); the
+                # smaller h4/h5 labels a bilingual merge adds are deliberately left out.
+                if block.anchor and block.kind in {"h1", "h2", "h3"} and block.anchor != title:
                     self.toc.append([1 if block.kind in {"h1", "h2"} else 2, block.anchor,
                                      self.doc.page_count])
             for line in block.lines:

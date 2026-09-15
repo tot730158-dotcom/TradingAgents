@@ -230,3 +230,36 @@ def test_full_run_writes_report_tree_and_pending_memory_entry(tmp_path, runner, 
     assert entry.startswith("[2026-09-15 | RKLB | Hold | pending]")
     assert "**Rating**: Hold" in entry
     assert "extracted signal : Hold" in capsys.readouterr().out
+
+
+@pytest.mark.unit
+def test_pdf_flag_typesets_the_written_report_tree(tmp_path, runner, capsys):
+    pymupdf = pytest.importorskip("pymupdf")
+    pack_dir = tmp_path / "pack"
+    pack_dir.mkdir()
+    (pack_dir / "pack.json").write_text(json.dumps(_pack()), encoding="utf-8")
+    out = tmp_path / "reports" / "RKLB_20260915"
+
+    code = runner.main(
+        [str(pack_dir / "pack.json"), "--write-reports", "--pdf", "--pdf-lang", "zh", "--out", str(out)]
+    )
+
+    assert code == 0
+    pdf = out / "complete_report.pdf"
+    assert pdf.exists() and pdf.stat().st_size > 1000
+    assert "pdf: " in capsys.readouterr().out
+    with pymupdf.open(pdf) as doc:
+        assert doc.page_count >= 2
+        # Chinese chrome is a renderer-side choice; the report prose stays as written.
+        assert "最終決策" in doc[0].get_text()
+
+
+@pytest.mark.unit
+def test_pdf_without_write_reports_is_a_usage_error(tmp_path, runner, capsys):
+    pytest.importorskip("pymupdf")
+    pack_dir = tmp_path / "pack"
+    pack_dir.mkdir()
+    (pack_dir / "pack.json").write_text(json.dumps(_pack()), encoding="utf-8")
+
+    assert runner.main([str(pack_dir / "pack.json"), "--validate-only", "--pdf"]) == 2
+    assert "--pdf needs --write-reports" in capsys.readouterr().err

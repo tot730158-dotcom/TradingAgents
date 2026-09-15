@@ -34,6 +34,13 @@ Breaking changes within the 0.x line are called out explicitly.
   from the report's script), plus a table of contents, repeating table header rows, a PDF
   outline and page-numbered footers. `agent_supplied_run.py --pdf [--pdf-lang zh]` runs it as
   part of a keyless run; font subsetting keeps a 17-page report near 100 KB.
+- **Bilingual (中英對照) report assembly** (`scripts/merge_bilingual_report.py`). Interleaves a
+  run's report with its translation — every framework section and agent subsection is paired by
+  position (an English/Chinese pair per section, original first), the agents' own headings are
+  folded to labels so the PDF outline stays at report → section → agent, and cover metadata is
+  merged from both documents. A translation with fewer sections or subsections than the original
+  is a hard error rather than a silently shifted pairing; translation-only sections (an appendix)
+  are appended. Output feeds straight into `report_to_pdf.py`.
 ## [0.4.0] — 2026-08-31
 
 Look-ahead and point-in-time fixes across the data and memory layers, clearer
